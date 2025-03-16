@@ -1,0 +1,180 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Text Editing Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        #progressBar {
+            width: 0;
+            transition: width 0.3s ease-in-out;
+        }
+        #error {
+            display: none;
+            color: red;
+        }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4 text-center">Multi-Text Editing Tool</h1>
+        
+        <div class="mb-3">
+            <label for="fileInput" class="form-label">Select Files (.txt, .md)</label>
+            <input type="file" class="form-control" id="fileInput" multiple accept=".txt, .md">
+        </div>
+        <div id="error" class="mb-3"></div>
+        
+        <div class="mb-3">
+            <h3>Tool 1: Find and Replace</h3>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="findText" placeholder="Text to find">
+                <input type="text" class="form-control" id="replaceText" placeholder="Text to replace with">
+                <button class="btn btn-primary" onclick="findAndReplace()">Replace</button>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <h3>Tool 2: Convert MD to TXT</h3>
+            <button class="btn btn-secondary" onclick="convertMdToTxt()">Convert</button>
+        </div>
+        
+        <div class="mb-3">
+            <h3>Tool 3: Remove Lines</h3>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="removeText" placeholder="Text to remove lines with">
+                <button class="btn btn-danger" onclick="removeLines()">Remove Lines</button>
+            </div>
+        </div>
+        
+        <button class="btn btn-success" onclick="saveFiles()">Save Files</button>
+        
+        <div id="progress" class="progress mt-3" style="display: none;">
+            <div id="progressBar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js"></script>
+    <script>
+        let files = [];
+        let modifiedFiles = [];
+        const fileInput = document.getElementById('fileInput');
+        const errorElement = document.getElementById('error');
+        const statusElement = document.getElementById('status');
+        const progressBar = document.getElementById('progressBar');
+        const progress = document.getElementById('progress');
+
+        // File selection handling
+        fileInput.addEventListener('change', (event) => {
+            files = Array.from(event.target.files);
+            modifiedFiles = files.map(file => ({ name: file.name, content: "" }));
+            errorElement.style.display = 'none';
+        });
+
+        // Find and Replace operation
+        function findAndReplace() {
+            const findText = document.getElementById('findText').value;
+            const replaceText = document.getElementById('replaceText').value;
+            if (!findText) {
+                return displayError("Find text cannot be empty.");
+            }
+            processFiles((content) => content.split(findText).join(replaceText), "Find and Replace completed");
+        }
+
+        // Convert MD to TXT operation
+        function convertMdToTxt() {
+            processFiles((content, file) => {
+                if (file.name.endsWith('.md')) {
+                    file.name = file.name.replace('.md', '.txt');
+                }
+                return content;
+            }, "Markdown to Text conversion completed");
+        }
+
+        // Remove Lines operation
+        function removeLines() {
+            const removeText = document.getElementById('removeText').value;
+            if (!removeText) {
+                return displayError("Remove text cannot be empty.");
+            }
+            processFiles((content) => content.split('\n').filter(line => !line.includes(removeText)).join('\n'), "Line removal completed");
+        }
+
+        // General file processing function
+        function processFiles(callback, successMessage) {
+            if (files.length === 0) {
+                return displayError("No files selected.");
+            }
+            resetProgress();
+            files.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        let content = e.target.result;
+                        modifiedFiles[index].content = callback(content, modifiedFiles[index]);
+                        updateProgress(successMessage);
+                    } catch (error) {
+                        displayError(`Error processing file ${file.name}: ${error.message}`);
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // Progress bar updates
+        function updateProgress(successMessage) {
+            const processedFiles = modifiedFiles.filter(file => file.content).length;
+            const progressPercentage = (processedFiles / files.length) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+            
+            if (processedFiles === files.length) {
+                setTimeout(() => {
+                    progress.style.display = 'none';
+                    statusElement.textContent = successMessage;
+                }, 500);
+            }
+        }
+
+        function resetProgress() {
+            progress.style.display = 'block';
+            statusElement.textContent = "Processing files...";
+        }
+
+        // Save files after modifications
+        function saveFiles() {
+            if (modifiedFiles.length === 0) {
+                return displayError("No files to save.");
+            }
+            resetProgress();
+            modifiedFiles.forEach(file => {
+                const blob = new Blob([file.content || ''], { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = file.name;
+                link.click();
+            });
+            statusElement.textContent = "All files saved successfully";
+        }
+
+        // Display error message
+        function displayError(message) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+            statusElement.textContent = "";
+        }
+    </script>
+</body>
+</html>
