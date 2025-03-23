@@ -1,179 +1,638 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-File Editing Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>File Batch Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body {
-            background-color: #f8f9fa;
+        .file-input::file-selector-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border: none;
+            background-color: #5D5CDE;
+            color: white;
+            cursor: pointer;
+            margin-right: 1rem;
+            font-size: 0.875rem;
         }
-        .container {
-            margin-top: 50px;
+        
+        .dark .file-input::file-selector-button {
+            background-color: #6766e3;
         }
-        #progressBar {
-            width: 0;
-            transition: width 0.3s ease-in-out;
+        
+        .file-item {
+            transition: all 0.3s ease;
         }
-        #error {
-            display: none;
-            color: red;
+        
+        .loading-spinner {
+            animation: spin 1s linear infinite;
         }
-        #status {
-            margin-top: 10px;
-            font-weight: bold;
-            text-align: center;
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1 class="mb-4 text-center">Multi-Text Editing Tool</h1>
+<body class="min-h-screen bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-200">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-3xl font-bold text-primary mb-6">File Batch Editor</h1>
         
-        <div class="mb-3">
-            <label for="fileInput" class="form-label">Select Files (.txt, .md)</label>
-            <input type="file" class="form-control" id="fileInput" multiple accept=".txt, .md">
-        </div>
-        <div id="error" class="mb-3"></div>
-        
-        <div class="mb-3">
-            <h3>Tool 1: Find and Replace</h3>
-            <div class="input-group mb-3">
-                <input type="text" class="form-control" id="findText" placeholder="Text to find">
-                <input type="text" class="form-control" id="replaceText" placeholder="Text to replace with">
-                <button class="btn btn-primary" onclick="findAndReplace()">Replace</button>
+        <!-- File Upload Section -->
+        <div class="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm">
+            <h2 class="text-xl font-semibold mb-4">Step 1: Import Files</h2>
+            <div class="mb-4">
+                <input type="file" id="fileInput" multiple accept=".txt,.md" 
+                       class="file-input block w-full text-base border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
             </div>
+            <div id="fileList" class="space-y-2 mt-4"></div>
         </div>
         
-        <div class="mb-3">
-            <h3>Tool 2: Convert MD to TXT</h3>
-            <button class="btn btn-secondary" onclick="convertMdToTxt()">Convert</button>
-        </div>
-        
-        <div class="mb-3">
-            <h3>Tool 3: Remove Lines</h3>
-            <div class="input-group mb-3">
-                <input type="text" class="form-control" id="removeText" placeholder="Text to remove lines with">
-                <button class="btn btn-danger" onclick="removeLines()">Remove Lines</button>
+        <!-- Operations Section -->
+        <div id="operationsSection" class="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm opacity-50 pointer-events-none">
+            <h2 class="text-xl font-semibold mb-4">Step 2: Select Operation</h2>
+            
+            <div class="mb-6">
+                <select id="operationType" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-base">
+                    <option value="find-replace">Find and Replace</option>
+                    <option value="remove-lines">Remove Lines Containing</option>
+                    <option value="remove-empty">Remove Empty Lines</option>
+                    <option value="convert-format">Convert File Format</option>
+                </select>
             </div>
+            
+            <div id="operationParams" class="space-y-4">
+                <!-- Find and Replace parameters -->
+                <div id="findReplaceParams">
+                    <div class="mb-4">
+                        <label for="findText" class="block mb-2 font-medium">Find:</label>
+                        <input type="text" id="findText" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-base">
+                    </div>
+                    <div class="mb-4">
+                        <label for="replaceText" class="block mb-2 font-medium">Replace with:</label>
+                        <input type="text" id="replaceText" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-base">
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="caseSensitive" class="w-4 h-4 text-primary">
+                        <label for="caseSensitive" class="ml-2">Case sensitive</label>
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="regexEnabled" class="w-4 h-4 text-primary">
+                        <label for="regexEnabled" class="ml-2">Use regular expression</label>
+                    </div>
+                </div>
+                
+                <!-- Remove Lines parameters -->
+                <div id="removeLinesParams" class="hidden">
+                    <div class="mb-4">
+                        <label for="lineMatchText" class="block mb-2 font-medium">Remove lines containing:</label>
+                        <input type="text" id="lineMatchText" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-base">
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="lineMatchCaseSensitive" class="w-4 h-4 text-primary">
+                        <label for="lineMatchCaseSensitive" class="ml-2">Case sensitive</label>
+                    </div>
+                </div>
+                
+                <!-- Convert Format parameters -->
+                <div id="convertFormatParams" class="hidden">
+                    <div class="mb-4">
+                        <label for="targetFormat" class="block mb-2 font-medium">Convert to:</label>
+                        <select id="targetFormat" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-base">
+                            <option value="txt">TXT (Plain Text)</option>
+                            <option value="md">MD (Markdown)</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="stripMarkdown" class="w-4 h-4 text-primary">
+                            <label for="stripMarkdown" class="ml-2">Strip markdown when converting to TXT</label>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                            When enabled, common markdown syntax like #, *, _, [], etc. will be removed or simplified
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="applyChanges" class="mt-4 px-4 py-2 bg-primary hover:bg-opacity-90 text-white rounded-md">Apply Changes</button>
         </div>
         
-        <button class="btn btn-success" onclick="saveFiles()">Save Files</button>
-        
-        <div id="progress" class="progress mt-3" style="display: none;">
-            <div id="progressBar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        <!-- Results Section -->
+        <div id="resultsSection" class="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm opacity-50 pointer-events-none hidden">
+            <h2 class="text-xl font-semibold mb-4">Step 3: Results</h2>
+            
+            <div class="flex justify-end mb-4">
+                <button id="downloadAllBtn" class="px-4 py-2 bg-primary hover:bg-opacity-90 text-white rounded-md flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download All as ZIP
+                </button>
+            </div>
+            
+            <div id="resultsContainer" class="space-y-6"></div>
         </div>
-        
-        <div id="status"></div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js"></script>
+    
+    <!-- External libraries for ZIP creation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
     <script>
-        let files = [];
-        let modifiedFiles = [];
-        const fileInput = document.getElementById('fileInput');
-        const errorElement = document.getElementById('error');
-        const statusElement = document.getElementById('status');
-        const progressBar = document.getElementById('progressBar');
-        const progress = document.getElementById('progress');
-
-        // File selection handling
-        fileInput.addEventListener('change', (event) => {
-            files = Array.from(event.target.files);
-            modifiedFiles = files.map(file => ({ name: file.name, content: "" }));
-            errorElement.style.display = 'none';
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
         });
-
-        // Find and Replace operation
-        function findAndReplace() {
-            const findText = document.getElementById('findText').value;
-            const replaceText = document.getElementById('replaceText').value;
-            if (!findText) {
-                return displayError("Find text cannot be empty.");
-            }
-            processFiles((content) => content.split(findText).join(replaceText), "Find and Replace completed");
-        }
-
-        // Convert MD to TXT operation
-        function convertMdToTxt() {
-            processFiles((content, file) => {
-                if (file.name.endsWith('.md')) {
-                    file.name = file.name.replace('.md', '.txt');
-                }
-                return content;
-            }, "Markdown to Text conversion completed");
-        }
-
-        // Remove Lines operation
-        function removeLines() {
-            const removeText = document.getElementById('removeText').value;
-            if (!removeText) {
-                return displayError("Remove text cannot be empty.");
-            }
-            processFiles((content) => content.split('\n').filter(line => !line.includes(removeText)).join('\n'), "Line removal completed");
-        }
-
-        // General file processing function
-        function processFiles(callback, successMessage) {
+        
+        // Variables to store files and contents
+        let filesData = [];
+        
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const operationsSection = document.getElementById('operationsSection');
+        const operationType = document.getElementById('operationType');
+        const findReplaceParams = document.getElementById('findReplaceParams');
+        const removeLinesParams = document.getElementById('removeLinesParams');
+        const convertFormatParams = document.getElementById('convertFormatParams');
+        const applyChanges = document.getElementById('applyChanges');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        
+        // File input handler
+        fileInput.addEventListener('change', async (e) => {
+            filesData = [];
+            fileList.innerHTML = '';
+            
+            const files = e.target.files;
+            
             if (files.length === 0) {
-                return displayError("No files selected.");
+                operationsSection.classList.add('opacity-50', 'pointer-events-none');
+                resultsSection.classList.add('opacity-50', 'pointer-events-none', 'hidden');
+                return;
             }
-            resetProgress();
-            files.forEach((file, index) => {
+            
+            // Show loading indicator
+            const filesCountElem = document.createElement('div');
+            filesCountElem.className = 'p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 flex items-center';
+            filesCountElem.innerHTML = `
+                <div class="loading-spinner mr-3 w-5 h-5 border-2 border-gray-300 dark:border-gray-600 border-t-primary rounded-full"></div>
+                <div class="font-medium">Loading ${files.length} files...</div>
+            `;
+            fileList.appendChild(filesCountElem);
+            
+            // Process files
+            let txtCount = 0;
+            let mdCount = 0;
+            let errorCount = 0;
+            let totalSize = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                
+                try {
+                    const content = await readFile(file);
+                    
+                    filesData.push({
+                        name: file.name,
+                        originalContent: content,
+                        modifiedContent: null,
+                        originalFormat: fileExt,
+                        targetFormat: fileExt // Default to same format
+                    });
+                    
+                    // Count file types
+                    if (fileExt === 'txt') txtCount++;
+                    else if (fileExt === 'md') mdCount++;
+                    
+                    totalSize += file.size;
+                    
+                } catch (error) {
+                    console.error(`Error reading ${file.name}:`, error);
+                    errorCount++;
+                }
+            }
+            
+            // Update file count summary
+            filesCountElem.innerHTML = `
+                <div class="flex-1">
+                    <div class="font-medium">${files.length} files imported</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        ${txtCount} TXT files, ${mdCount} MD files${errorCount > 0 ? `, ${errorCount} errors` : ''}
+                        | Total size: ${formatFileSize(totalSize)}
+                    </div>
+                </div>
+            `;
+            
+            // Enable operations section
+            operationsSection.classList.remove('opacity-50', 'pointer-events-none');
+        });
+        
+        // Function to read file contents
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
+                
                 reader.onload = (e) => {
-                    try {
-                        let content = e.target.result;
-                        modifiedFiles[index].content = callback(content, modifiedFiles[index]);
-                        updateProgress(successMessage);
-                    } catch (error) {
-                        displayError(`Error processing file ${file.name}: ${error.message}`);
-                    }
+                    resolve(e.target.result);
                 };
+                
+                reader.onerror = (e) => {
+                    reject(new Error('Failed to read file'));
+                };
+                
                 reader.readAsText(file);
             });
         }
-
-        // Progress bar updates
-        function updateProgress(successMessage) {
-            const processedFiles = modifiedFiles.filter(file => file.content).length;
-            const progressPercentage = (processedFiles / files.length) * 100;
-            progressBar.style.width = `${progressPercentage}%`;
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        
+        // Operation type change handler
+        operationType.addEventListener('change', (e) => {
+            const operation = e.target.value;
             
-            if (processedFiles === files.length) {
-                setTimeout(() => {
-                    progress.style.display = 'none';
-                    statusElement.textContent = successMessage;
-                }, 500);
+            // Show/hide relevant parameters
+            switch(operation) {
+                case 'find-replace':
+                    findReplaceParams.classList.remove('hidden');
+                    removeLinesParams.classList.add('hidden');
+                    convertFormatParams.classList.add('hidden');
+                    break;
+                case 'remove-lines':
+                    findReplaceParams.classList.add('hidden');
+                    removeLinesParams.classList.remove('hidden');
+                    convertFormatParams.classList.add('hidden');
+                    break;
+                case 'convert-format':
+                    findReplaceParams.classList.add('hidden');
+                    removeLinesParams.classList.add('hidden');
+                    convertFormatParams.classList.remove('hidden');
+                    break;
+                case 'remove-empty':
+                case 'trim-lines':
+                    findReplaceParams.classList.add('hidden');
+                    removeLinesParams.classList.add('hidden');
+                    convertFormatParams.classList.add('hidden');
+                    break;
             }
-        }
-
-        function resetProgress() {
-            progress.style.display = 'block';
-            statusElement.textContent = "Processing files...";
-        }
-
-        // Save files after modifications
-        function saveFiles() {
-            if (modifiedFiles.length === 0) {
-                return displayError("No files to save.");
-            }
-            resetProgress();
-            modifiedFiles.forEach(file => {
-                const blob = new Blob([file.content || ''], { type: 'text/plain' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = file.name;
-                link.click();
+        });
+        
+        // Apply changes button handler
+        applyChanges.addEventListener('click', () => {
+            const operation = operationType.value;
+            
+            // Process files based on selected operation
+            filesData.forEach(fileData => {
+                switch(operation) {
+                    case 'find-replace':
+                        const findText = document.getElementById('findText').value;
+                        const replaceText = document.getElementById('replaceText').value;
+                        const caseSensitive = document.getElementById('caseSensitive').checked;
+                        const regexEnabled = document.getElementById('regexEnabled').checked;
+                        
+                        fileData.modifiedContent = findAndReplace(
+                            fileData.originalContent, 
+                            findText, 
+                            replaceText, 
+                            caseSensitive, 
+                            regexEnabled
+                        );
+                        fileData.targetFormat = fileData.originalFormat;
+                        break;
+                    
+                    case 'remove-lines':
+                        const lineMatchText = document.getElementById('lineMatchText').value;
+                        const lineMatchCaseSensitive = document.getElementById('lineMatchCaseSensitive').checked;
+                        
+                        fileData.modifiedContent = removeLines(
+                            fileData.originalContent, 
+                            lineMatchText, 
+                            lineMatchCaseSensitive
+                        );
+                        fileData.targetFormat = fileData.originalFormat;
+                        break;
+                    
+                    case 'remove-empty':
+                        fileData.modifiedContent = removeEmptyLines(fileData.originalContent);
+                        fileData.targetFormat = fileData.originalFormat;
+                        break;
+                        
+                    case 'convert-format':
+                        const targetFormat = document.getElementById('targetFormat').value;
+                        const stripMarkdown = document.getElementById('stripMarkdown').checked;
+                        
+                        fileData.modifiedContent = convertFormat(
+                            fileData.originalContent,
+                            fileData.originalFormat,
+                            targetFormat,
+                            stripMarkdown
+                        );
+                        fileData.targetFormat = targetFormat;
+                        break;
+                }
             });
-            statusElement.textContent = "All files saved successfully";
+            
+            // Show results
+            showResults();
+        });
+        
+        // Find and replace function
+        function findAndReplace(text, findStr, replaceStr, caseSensitive, useRegex) {
+            if (!findStr) return text;
+            
+            if (useRegex) {
+                try {
+                    const flags = caseSensitive ? 'g' : 'gi';
+                    const regex = new RegExp(findStr, flags);
+                    return text.replace(regex, replaceStr);
+                } catch (error) {
+                    // If regex is invalid, fall back to string replace
+                    console.error("Invalid regex:", error);
+                    return findAndReplace(text, findStr, replaceStr, caseSensitive, false);
+                }
+            } else {
+                if (caseSensitive) {
+                    return text.split(findStr).join(replaceStr);
+                } else {
+                    const regex = new RegExp(escapeRegExp(findStr), 'gi');
+                    return text.replace(regex, replaceStr);
+                }
+            }
         }
-
-        // Display error message
-        function displayError(message) {
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
-            statusElement.textContent = "";
+        
+        // Convert format function
+        function convertFormat(text, fromFormat, toFormat, stripMarkdown) {
+            // If format is the same, return unchanged
+            if (fromFormat === toFormat) return text;
+            
+            // Convert markdown to plain text
+            if (fromFormat === 'md' && toFormat === 'txt' && stripMarkdown) {
+                return stripMarkdownSyntax(text);
+            }
+            
+            // For other format conversions, just keep the content the same
+            return text;
+        }
+        
+        // Strip markdown syntax
+        function stripMarkdownSyntax(markdown) {
+            let text = markdown;
+            
+            // Headers
+            text = text.replace(/^#{1,6}\s+/gm, '');
+            
+            // Bold and italic
+            text = text.replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1');
+            
+            // Links
+            text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+            
+            // Images
+            text = text.replace(/!\[([^\]]+)\]\([^)]+\)/g, 'Image: $1');
+            
+            // Lists
+            text = text.replace(/^[\s-]*[-*+]\s+/gm, '• ');
+            text = text.replace(/^[\s-]*\d+\.\s+/gm, '• ');
+            
+            // Blockquotes
+            text = text.replace(/^>\s+/gm, '');
+            
+            // Code blocks
+            text = text.replace(/```[\s\S]*?```/g, function(match) {
+                return match.replace(/```(?:\w+)?\n([\s\S]*?)\n```/g, '$1');
+            });
+            
+            // Inline code
+            text = text.replace(/`([^`]+)`/g, '$1');
+            
+            // Horizontal rules
+            text = text.replace(/^(?:[-*_]\s*){3,}$/gm, '---');
+            
+            // HTML tags (basic)
+            text = text.replace(/<[^>]+>/g, '');
+            
+            return text;
+        }
+        
+        // Escape string for use in regex
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        // Remove lines containing text
+        function removeLines(text, matchStr, caseSensitive) {
+            if (!matchStr) return text;
+            
+            const lines = text.split('\n');
+            let resultLines;
+            
+            if (caseSensitive) {
+                resultLines = lines.filter(line => !line.includes(matchStr));
+            } else {
+                const lowerMatchStr = matchStr.toLowerCase();
+                resultLines = lines.filter(line => !line.toLowerCase().includes(lowerMatchStr));
+            }
+            
+            return resultLines.join('\n');
+        }
+        
+        // Remove empty lines
+        function removeEmptyLines(text) {
+            const lines = text.split('\n');
+            const resultLines = lines.filter(line => line.trim() !== '');
+            return resultLines.join('\n');
+        }
+        
+        // Trim whitespace from each line
+        function trimLines(text) {
+            const lines = text.split('\n');
+            const resultLines = lines.map(line => line.trim());
+            return resultLines.join('\n');
+        }
+        
+        // Generate a new filename based on the operation and target format
+        function generateOutputFilename(originalName, targetFormat) {
+            // Extract the name without extension
+            const nameParts = originalName.split('.');
+            const ext = nameParts.pop();
+            const baseName = nameParts.join('.');
+            
+            // If format changes, replace extension, otherwise append "-edited"
+            if (ext.toLowerCase() !== targetFormat) {
+                return `${baseName}.${targetFormat}`;
+            } else {
+                return `${baseName}-edited.${targetFormat}`;
+            }
+        }
+        
+        // Function to download a text file
+        function downloadTextFile(content, fileName) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Function to create and download zip of all files
+        async function downloadAllAsZip() {
+            const zip = new JSZip();
+            
+            // Add each file to the zip
+            filesData.forEach(fileData => {
+                if (fileData.modifiedContent) {
+                    const outputFilename = generateOutputFilename(fileData.name, fileData.targetFormat);
+                    zip.file(outputFilename, fileData.modifiedContent);
+                }
+            });
+            
+            // Generate and download the zip
+            try {
+                const content = await zip.generateAsync({ type: 'blob' });
+                saveAs(content, 'edited-files.zip');
+            } catch (error) {
+                console.error('Error creating zip:', error);
+                alert('Failed to create zip file. Please try downloading files individually.');
+            }
+        }
+        
+        // Download all button handler
+        downloadAllBtn.addEventListener('click', downloadAllAsZip);
+        
+        // Show results
+        function showResults() {
+            resultsContainer.innerHTML = '';
+            resultsSection.classList.remove('opacity-50', 'pointer-events-none', 'hidden');
+            
+            filesData.forEach(fileData => {
+                const originalLines = fileData.originalContent.split('\n').length;
+                const modifiedLines = fileData.modifiedContent.split('\n').length;
+                const lineChange = modifiedLines - originalLines;
+                const lineChangeText = lineChange === 0 ? 'No change in line count' :
+                                      lineChange > 0 ? `+${lineChange} lines` : `${lineChange} lines`;
+                
+                const outputFilename = generateOutputFilename(fileData.name, fileData.targetFormat);
+                
+                const formatChange = fileData.originalFormat !== fileData.targetFormat ? 
+                    `Format: ${fileData.originalFormat.toUpperCase()} → ${fileData.targetFormat.toUpperCase()}` : '';
+                
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item p-4 border border-gray-200 dark:border-gray-700 rounded-md';
+                resultItem.innerHTML = `
+                    <div class="flex flex-col sm:flex-row justify-between mb-3">
+                        <h3 class="font-medium text-lg mb-2 sm:mb-0">${fileData.name}</h3>
+                        <div class="flex space-x-2">
+                            <button class="copy-btn px-3 py-1 bg-primary hover:bg-opacity-90 text-white rounded-md text-sm">Copy</button>
+                            <button class="download-btn px-3 py-1 bg-green-600 hover:bg-opacity-90 text-white rounded-md text-sm">Download</button>
+                            <button class="compare-btn px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-opacity-90 rounded-md text-sm">Compare</button>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">${lineChangeText}</div>
+                    ${formatChange ? `<div class="text-sm text-gray-500 dark:text-gray-400 mb-3">${formatChange}</div>` : ''}
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-3">Output: ${outputFilename}</div>
+                    <div class="preview-container">
+                        <pre class="whitespace-pre-wrap p-3 rounded-md bg-gray-100 dark:bg-gray-900 text-sm max-h-60 overflow-y-auto">${escapeHTML(fileData.modifiedContent.substring(0, 1000))}${fileData.modifiedContent.length > 1000 ? '...' : ''}</pre>
+                    </div>
+                    <div class="comparison-container hidden mt-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <div class="font-medium mb-2">Original (${fileData.originalFormat.toUpperCase()})</div>
+                                <pre class="whitespace-pre-wrap p-3 rounded-md bg-gray-100 dark:bg-gray-900 text-sm max-h-60 overflow-y-auto">${escapeHTML(fileData.originalContent.substring(0, 1000))}${fileData.originalContent.length > 1000 ? '...' : ''}</pre>
+                            </div>
+                            <div>
+                                <div class="font-medium mb-2">Modified (${fileData.targetFormat.toUpperCase()})</div>
+                                <pre class="whitespace-pre-wrap p-3 rounded-md bg-gray-100 dark:bg-gray-900 text-sm max-h-60 overflow-y-auto">${escapeHTML(fileData.modifiedContent.substring(0, 1000))}${fileData.modifiedContent.length > 1000 ? '...' : ''}</pre>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(resultItem);
+                
+                // Add event listeners to buttons
+                const copyBtn = resultItem.querySelector('.copy-btn');
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(fileData.modifiedContent)
+                        .then(() => {
+                            const originalText = copyBtn.textContent;
+                            copyBtn.textContent = 'Copied!';
+                            copyBtn.classList.add('bg-green-600');
+                            
+                            setTimeout(() => {
+                                copyBtn.textContent = originalText;
+                                copyBtn.classList.remove('bg-green-600');
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Failed to copy:', err);
+                            const originalText = copyBtn.textContent;
+                            copyBtn.textContent = 'Error';
+                            copyBtn.classList.add('bg-red-600');
+                            
+                            setTimeout(() => {
+                                copyBtn.textContent = originalText;
+                                copyBtn.classList.remove('bg-red-600');
+                            }, 2000);
+                        });
+                });
+                
+                const downloadBtn = resultItem.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', () => {
+                    const outputFilename = generateOutputFilename(fileData.name, fileData.targetFormat);
+                    downloadTextFile(fileData.modifiedContent, outputFilename);
+                });
+                
+                const compareBtn = resultItem.querySelector('.compare-btn');
+                const comparisonContainer = resultItem.querySelector('.comparison-container');
+                compareBtn.addEventListener('click', () => {
+                    if (comparisonContainer.classList.contains('hidden')) {
+                        comparisonContainer.classList.remove('hidden');
+                        compareBtn.textContent = 'Hide Comparison';
+                    } else {
+                        comparisonContainer.classList.add('hidden');
+                        compareBtn.textContent = 'Compare';
+                    }
+                });
+            });
+        }
+        
+        // Helper function to escape HTML
+        function escapeHTML(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
