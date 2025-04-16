@@ -19,7 +19,7 @@ A web-based application designed to streamline the editing of multiple text file
 
 ## Usage
 
-1. **Access the Tool**: Visit the live application at [https://nuhbodyok.github.io/bff/](https://nuhbodyok.github.io/bff/).
+1. **Access the Tool**: Visit the live application at (https://nuhbodyok.github.io/bulk-file-edit/)](https://nuhbodyok.github.io/bulk-file-edit/)).
 
 2. **Select Files**: Click on the "Select Files" button to upload your `.txt` or `.md` files.
 
@@ -37,4 +37,4 @@ To contribute to this project:
 1. **Clone the Repository**:
 
    ```bash
-   git clone https://github.com/nuhbodyok/bff.git
+   git clone https://github.com/nuhbodyok/bulk-file-edit.git
